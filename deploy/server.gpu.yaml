@@ -1,0 +1,47 @@
+# GPU deployment profile — single 24 GB GPU (RunPod RTX 4090 reference).
+#
+# Expects a vLLM OpenAI-compatible server on :8001 (started by
+# deploy/runpod_setup.sh). Whole stack budget on 24 GB:
+#   vLLM (0.72 util incl. KV cache) ~17 GB · whisper small.en fp16 ~0.5 GB
+#   kokoro ~0.5 GB · headroom for CUDA context and spikes.
+
+host: 0.0.0.0
+port: 8000
+
+characters_dir: characters
+log_dir: logs
+web_dir: web
+history_max_turns: 12
+speak_greeting: true
+
+vad:
+  backend: silero          # production VAD; flip to `energy` if debugging
+  options:
+    threshold: 0.5
+    end_ms: 600
+    pre_roll_ms: 200
+
+asr:
+  backend: faster_whisper
+  options:
+    model: small.en
+    device: cuda
+    compute_type: float16
+    beam_size: 1           # greedy: latency first; bump for accuracy runs
+
+llm:
+  backend: openai_compat
+  options:
+    base_url: http://127.0.0.1:8001/v1
+    api_key: EMPTY
+    # Ungated AWQ model = zero HF-license friction for the baseline.
+    # Swap to a Llama-3.1-8B AWQ repo later if the Forge standardizes on it.
+    model: Qwen/Qwen2.5-7B-Instruct-AWQ
+    temperature: 0.8
+    max_tokens: 180
+
+tts:
+  backend: kokoro
+  options:
+    lang_code: a
+    default_voice: af_heart

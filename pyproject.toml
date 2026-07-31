@@ -25,7 +25,7 @@ dependencies = [
 asr = ["faster-whisper>=1.0"]
 tts = ["kokoro>=0.9", "soundfile>=0.12"]
 vad = ["silero-vad>=5.1"]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "websockets>=12"]
 
 [project.scripts]
 parley = "parley.cli:main"
