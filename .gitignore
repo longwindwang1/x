@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Env / secrets
+.env
+*.local.yaml
+
+# Runtime artifacts
+logs/
+models/
+*.wav
+!characters/voices/*.wav
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Unity (inside sdk-unity sample projects)
+sdk-unity/**/Library/
+sdk-unity/**/Temp/
+sdk-unity/**/Logs/
+sdk-unity/**/obj/

@@ -1,0 +1,53 @@
+# Parley server configuration.
+#
+# The defaults below run the FULL pipeline with mock backends — no GPU, no
+# model downloads — so you can develop the protocol, clients, and characters
+# on any machine. Swap backends section-by-section when deploying for real.
+
+host: 127.0.0.1
+port: 8000
+
+characters_dir: characters
+log_dir: logs            # per-turn latency timelines are appended to logs/turns.jsonl
+web_dir: web             # built-in browser test client, served at /web/
+history_max_turns: 12    # dialogue turns kept as LLM context
+speak_greeting: true     # synthesize the character greeting on session start
+
+vad:
+  backend: energy        # energy | silero
+  options:
+    threshold: 0.015     # RMS threshold (0..1 float scale)
+    end_ms: 600          # trailing silence that ends an utterance
+    pre_roll_ms: 200     # audio kept from before speech onset
+    max_utterance_s: 30
+
+asr:
+  backend: mock          # mock | faster_whisper
+  options: {}
+  # backend: faster_whisper
+  # options:
+  #   model: small.en    # tiny.en / small.en / medium.en ...
+  #   device: cuda       # cuda | cpu
+  #   compute_type: float16
+
+llm:
+  backend: mock          # mock | openai_compat
+  options:
+    token_delay_s: 0.02  # simulated generation pace (0 for tests)
+  # backend: openai_compat
+  # options:
+  #   base_url: http://localhost:8001/v1   # vLLM OpenAI-compatible server
+  #   api_key: EMPTY
+  #   model: meta-llama/Llama-3.1-8B-Instruct
+  #   # Characters with model.mode=lora override `model` per request with
+  #   # their lora_adapter name (vLLM multi-LoRA routing).
+  #   temperature: 0.8
+  #   max_tokens: 220
+
+tts:
+  backend: mock          # mock | kokoro
+  options: {}
+  # backend: kokoro
+  # options:
+  #   lang_code: a       # American English
+  #   default_voice: af_heart

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parley — dev client</title>
+<style>
+  :root {
+    --bg: #12141a; --panel: #1b1e27; --border: #2b2f3d;
+    --text: #e6e8ee; --dim: #8b90a0; --accent: #7aa2f7; --npc: #9ece6a;
+    --warn: #e0af68; --err: #f7768e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+    display: flex; flex-direction: column; height: 100vh;
+  }
+  header {
+    display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+    background: var(--panel); border-bottom: 1px solid var(--border);
+  }
+  header h1 { font-size: 15px; margin: 0 12px 0 0; letter-spacing: 1px; }
+  select, button, input[type=text] {
+    background: #232735; color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 12px; font: inherit;
+  }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+  button.active { background: var(--accent); color: #10131a; border-color: var(--accent); }
+  button:disabled { opacity: .4; cursor: default; }
+  #status { margin-left: auto; color: var(--dim); font-size: 12px; }
+  #status.err { color: var(--err); }
+  main { flex: 1; display: flex; min-height: 0; }
+  #transcript { flex: 1; overflow-y: auto; padding: 16px; }
+  .line { margin: 8px 0; max-width: 70ch; }
+  .line .who { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+  .line.user .who { color: var(--accent); }
+  .line.npc .who { color: var(--npc); }
+  .line.sys { color: var(--dim); font-size: 12px; font-style: italic; }
+  aside {
+    width: 260px; border-left: 1px solid var(--border); background: var(--panel);
+    padding: 14px; font-size: 12px; overflow-y: auto;
+  }
+  aside h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--dim); margin: 0 0 8px; }
+  #metrics td { padding: 2px 6px 2px 0; color: var(--dim); }
+  #metrics td:last-child { color: var(--text); text-align: right; font-variant-numeric: tabular-nums; }
+  #metrics tr.headline td { color: var(--warn); font-weight: 600; }
+  footer {
+    display: flex; gap: 8px; padding: 10px 16px;
+    background: var(--panel); border-top: 1px solid var(--border);
+  }
+  footer input { flex: 1; }
+  #miclevel { height: 3px; background: var(--accent); width: 0%; transition: width .06s linear; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>PARLEY</h1>
+    <select id="character"></select>
+    <button id="connect">Connect</button>
+    <button id="mic" disabled>🎙 Mic off</button>
+    <span id="status">disconnected</span>
+  </header>
+  <div id="miclevel"></div>
+  <main>
+    <div id="transcript"></div>
+    <aside>
+      <h2>Last turn latency (ms)</h2>
+      <table id="metrics"><tbody></tbody></table>
+      <h2 style="margin-top:16px">Session</h2>
+      <div id="sessioninfo" style="color:var(--dim)">—</div>
+    </aside>
+  </main>
+  <footer>
+    <input id="textinput" type="text" placeholder="Type to the NPC (bypasses ASR)…" disabled>
+    <button id="send" disabled>Send</button>
+    <button id="interrupt" disabled>Interrupt</button>
+  </footer>
+  <script src="app.js"></script>
+</body>
+</html>
