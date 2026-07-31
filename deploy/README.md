@@ -1,70 +1,84 @@
-# Deploying Parley on a GPU (RunPod runbook)
+# Deploying Parley on a GPU pod (RunPod / AutoDL)
 
-Reference target: one RTX 4090 (24 GB), ~$0.40–0.70/hr on RunPod.
-Result: full real-backend stack (Silero VAD + faster-whisper + vLLM/Qwen2.5-7B-AWQ
-+ Kokoro) on a single GPU, ready for latency baselining.
+Reference target: one RTX 4090 (24 GB) — ~$0.40–0.70/hr on RunPod,
+~¥1.5–2/hr on AutoDL. Result: full real-backend stack (Silero VAD +
+faster-whisper + vLLM/Qwen2.5-7B-AWQ + Kokoro) on a single GPU, ready for
+latency baselining. One script serves both platforms:
+[`pod_setup.sh`](pod_setup.sh) auto-detects AutoDL and switches to the
+HuggingFace mirror + 学术加速 + `/root/autodl-tmp` paths.
 
-## 1. Launch the pod (~2 min, web console)
+## Option A: RunPod
 
-1. runpod.io → **Deploy** → GPU: **RTX 4090**.
-2. Template: **RunPod PyTorch 2.x** (CUDA 12.x).
-3. Edit template → **Expose HTTP port 8000** (keep SSH enabled).
-4. Container/volume disk: ≥ 40 GB volume (model caches live in /workspace).
-5. Deploy, then open the **web terminal** (or SSH).
+1. runpod.io → **Deploy** → GPU **RTX 4090** → template **RunPod PyTorch 2.x**
+   (CUDA 12.x) → edit template and **expose HTTP port 8000** → volume ≥ 40 GB.
+2. Open the pod's web terminal:
 
-## 2. One command on the pod
+   ```bash
+   bash <(curl -fsSL https://raw.githubusercontent.com/longwindwang1/x/main/deploy/pod_setup.sh)
+   ```
 
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/longwindwang1/x/main/deploy/runpod_setup.sh)
-```
+3. When uvicorn is up, open `https://<POD_ID>-8000.proxy.runpod.net` — the
+   browser client works over the proxy (mic included; the page is https).
 
-First run downloads ~8 GB of models (~10 min). It starts vLLM on :8001 in the
-background and Parley on :8000 in the foreground. When it prints the uvicorn
-banner, open:
+## Option B: AutoDL
 
-```
-https://<POD_ID>-8000.proxy.runpod.net
-```
+1. autodl.com → 租一台 **RTX 4090**，镜像选 **PyTorch 2.x / CUDA 12.x**。
+2. 打开 JupyterLab 终端（或 SSH）：
 
-— the browser client works over the RunPod proxy (wss). Talk with the mic or
-the text box; the sidebar shows per-turn latency.
+   ```bash
+   source /etc/network_turbo   # 学术加速：让 GitHub / pip 提速
+   bash <(curl -fsSL https://raw.githubusercontent.com/longwindwang1/x/main/deploy/pod_setup.sh)
+   ```
 
-## 3. Baseline numbers (the actual deliverable)
+3. 浏览器访问推荐 **SSH 隧道**（AutoDL 实例页有现成的 SSH 命令，加 `-L` 即可）：
+
+   ```bash
+   ssh -L 8000:127.0.0.1:8000 -p <SSH端口> root@<实例地址>
+   ```
+
+   然后本机打开 http://127.0.0.1:8000 （localhost 页面浏览器允许开麦）。
+   另一条路是 AutoDL 的「自定义服务」（公网暴露 6006 端口，需实名认证）：
+   启动时用 `PARLEY_PORT=6006 bash <(curl ...)`，再从实例页打开自定义服务链接。
+
+## Baseline numbers (the actual deliverable)
 
 **On-pod (clean server-side numbers, no internet in the loop):**
 
 ```bash
-cd /workspace/parley
+cd /workspace/parley   # AutoDL: cd /root/autodl-tmp/parley
 python evals/bench_client.py --turns 20            # voice turns (synthesized utterance)
 python evals/bench_client.py --turns 20 --text-only
 python evals/latency_report.py logs/turns.jsonl    # aggregate everything recorded
 ```
 
-**From your laptop (adds real network + RunPod proxy):**
+**From your laptop (adds real network):**
 
 ```bash
-python evals/bench_client.py --url wss://<POD_ID>-8000.proxy.runpod.net/ws --turns 20
+python evals/bench_client.py --url ws://127.0.0.1:8000/ws --turns 20   # via SSH tunnel
+# RunPod proxy: --url wss://<POD_ID>-8000.proxy.runpod.net/ws
 ```
 
 Record both: server-side `first_audio_ms` is the pipeline number for the
 README; the laptop run shows what a remote player would feel.
 
-## 4. Iterating / cost hygiene
+## Iterating / cost hygiene
 
-- Parley code changes: `git pull` on the pod, Ctrl-C and rerun the setup
-  script (vLLM stays up, restart is seconds).
-- vLLM logs: `/workspace/vllm.log`. GPU pressure: `nvidia-smi`.
-- **Stop the pod when done** — model caches persist on the volume, restarts
-  are fast and only volume storage bills while stopped.
+- Code changes: `git pull` on the pod, Ctrl-C and rerun the setup script
+  (vLLM stays up in the background, restart takes seconds).
+- vLLM logs: `/workspace/vllm.log` (AutoDL: `/root/autodl-tmp/vllm.log`).
+  GPU pressure: `nvidia-smi`.
+- **Stop the pod when done** — model caches persist on the volume/data disk,
+  so restarts are fast and only storage bills while stopped.
 
 ## Troubleshooting
 
-- **vLLM OOM**: lower `--gpu-memory-utilization` to 0.65 in the setup script,
+- **vLLM OOM**: lower `--gpu-memory-utilization` to 0.65 in `pod_setup.sh`,
   or drop `max_tokens` in `deploy/server.gpu.yaml`.
-- **VAD never triggers on mic**: RunPod proxy is fine for wss, but browser
-  mic requires the page be https — the proxy URL is. If open-mic misfires,
-  test with `--text-only` bench first, then flip `vad.backend` to `energy`
-  to isolate Silero vs audio-path issues.
-- **Gated models**: default model is ungated Qwen AWQ. For Llama:
+- **Mic doesn't work in the browser**: the page must be https or localhost —
+  RunPod proxy and the SSH tunnel both satisfy this; a bare `http://<ip>`
+  will be blocked by the browser. Test with `--text-only` bench to isolate.
+- **VAD never triggers**: flip `vad.backend` to `energy` in
+  `deploy/server.gpu.yaml` to isolate Silero vs audio-path issues.
+- **Gated models (Llama)**: default model is ungated Qwen AWQ. For Llama:
   `export PARLEY_VLLM_MODEL=<llama-awq-repo>` and `huggingface-cli login`
-  before running the script.
+  first (AutoDL: also keep `HF_ENDPOINT=https://hf-mirror.com`).
