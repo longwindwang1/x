@@ -16,8 +16,10 @@ PORT="${PARLEY_PORT:-8000}"
 
 # Platform detection: AutoDL boxes ship /etc/network_turbo (GitHub proxy) and
 # need the HuggingFace mirror; both are no-ops elsewhere.
+IS_CN=0
 if [ -f /etc/network_turbo ]; then
-  echo "AutoDL detected: enabling 学术加速 + hf-mirror"
+  echo "AutoDL detected: enabling 学术加速 + domestic mirrors"
+  IS_CN=1
   # shellcheck disable=SC1091
   source /etc/network_turbo || true
   export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
@@ -90,12 +92,31 @@ elif [ "${GPU_TOTAL:-0}" -lt 22000 ]; then
   echo "NOTE: ${GPU_TOTAL} MiB GPU — tightening KV cache and disabling CUDA graphs."
 fi
 
+# Fetch weights up front rather than letting vLLM download them silently:
+# progress is visible, failures are resumable, and in CN we can use
+# ModelScope (domestic, no proxy) instead of timing out against HuggingFace.
+MODEL_DIR="$WORKROOT/models/$(basename "$VLLM_MODEL")"
+if [ -f "$MODEL_DIR/config.json" ]; then
+  echo "weights already present at $MODEL_DIR"
+elif [ "$IS_CN" = "1" ]; then
+  echo "downloading $VLLM_MODEL from ModelScope (resumable; ~5.5 GB)"
+  uv pip install -q modelscope
+  modelscope download --model "$VLLM_MODEL" --local_dir "$MODEL_DIR"
+else
+  echo "downloading $VLLM_MODEL from HuggingFace (resumable; ~5.5 GB)"
+  uv pip install -q "huggingface_hub[cli]"
+  hf download "$VLLM_MODEL" --local-dir "$MODEL_DIR"
+fi
+
 if ! curl -sf http://127.0.0.1:8001/v1/models > /dev/null 2>&1; then
   if ! pgrep -f "vllm serve" > /dev/null 2>&1; then
-    echo "starting: vllm serve $VLLM_MODEL --max-model-len $MAX_LEN" \
+    echo "starting: vllm serve $MODEL_DIR --max-model-len $MAX_LEN" \
          "--gpu-memory-utilization $GPU_UTIL $EXTRA_ARGS"
+    # --served-model-name keeps the API model id equal to the HF name, so
+    # deploy/server.gpu.yaml needs no change when weights come from disk.
     # shellcheck disable=SC2086
-    nohup vllm serve "$VLLM_MODEL" \
+    nohup vllm serve "$MODEL_DIR" \
+      --served-model-name "$VLLM_MODEL" \
       --max-model-len "$MAX_LEN" \
       --gpu-memory-utilization "$GPU_UTIL" \
       --port 8001 \
@@ -104,8 +125,8 @@ if ! curl -sf http://127.0.0.1:8001/v1/models > /dev/null 2>&1; then
   else
     echo "vLLM process already running (still loading); waiting on it"
   fi
-  echo "waiting for vLLM to load $VLLM_MODEL (first run downloads ~5.5 GB;"
-  echo "watch progress with: tail -f $WORKROOT/vllm.log)"
+  echo "waiting for vLLM to load $VLLM_MODEL from disk"
+  echo "(watch progress with: tail -f $WORKROOT/vllm.log)"
   for i in $(seq 1 240); do
     sleep 5
     if curl -sf http://127.0.0.1:8001/v1/models > /dev/null 2>&1; then break; fi

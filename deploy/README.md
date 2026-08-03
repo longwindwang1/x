@@ -30,6 +30,13 @@ HuggingFace mirror + 学术加速 + `/root/autodl-tmp` paths.
    bash <(curl -fsSL https://raw.githubusercontent.com/longwindwang1/x/main/deploy/pod_setup.sh)
    ```
 
+   模型权重走 **ModelScope**（国内直连，不经 HuggingFace），依赖走清华 TUNA 源。
+   重跑时建议改用本地仓库，避开 GitHub raw 的 CDN 缓存：
+
+   ```bash
+   cd /root/autodl-tmp/parley && git pull && bash deploy/pod_setup.sh
+   ```
+
 3. 浏览器访问推荐 **SSH 隧道**（AutoDL 实例页有现成的 SSH 命令，加 `-L` 即可）：
 
    ```bash
@@ -79,8 +86,19 @@ README; the laptop run shows what a remote player would feel.
   both: clean venv at `<workroot>/parley-venv` + installs via `uv pip`.
   Installing manually? Activate the venv and use `uv pip install`, not pip.
   If it still fails, use a Python 3.10–3.12 image.
+- **vLLM "did not come up" with an empty root cause**: nothing crashed — the
+  weights were still downloading. The script now fetches them up front with
+  a progress bar (ModelScope in CN, HuggingFace elsewhere) into
+  `<workroot>/models/`, and the download resumes if interrupted.
+- **`SSL handshake timed out` against huggingface.co in the vLLM log**: an
+  old run that bypassed the mirror. Re-run the current script; weights come
+  from ModelScope on AutoDL.
+- **Script seems to ignore recent fixes**: `raw.githubusercontent.com` caches
+  for a few minutes. Re-run from the clone instead:
+  `cd <workroot>/parley && git pull && bash deploy/pod_setup.sh`.
 - **vLLM OOM**: lower `--gpu-memory-utilization` to 0.65 in `pod_setup.sh`,
-  or drop `max_tokens` in `deploy/server.gpu.yaml`.
+  or drop `max_tokens` in `deploy/server.gpu.yaml`. The script already sizes
+  itself down automatically on GPUs smaller than 22 GB.
 - **Mic doesn't work in the browser**: the page must be https or localhost —
   RunPod proxy and the SSH tunnel both satisfy this; a bare `http://<ip>`
   will be blocked by the browser. Test with `--text-only` bench to isolate.
