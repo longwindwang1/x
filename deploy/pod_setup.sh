@@ -60,6 +60,11 @@ uv pip install vllm
 uv pip install -e ".[asr,tts,vad,dev]"
 
 echo "== [4/5] start vLLM (:8001) =="
+GPU_USED=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1 || echo 0)
+if [ "${GPU_USED:-0}" -gt 2000 ] && ! curl -sf http://127.0.0.1:8001/v1/models > /dev/null 2>&1; then
+  echo "WARNING: GPU already has ${GPU_USED} MiB in use but vLLM is not serving —"
+  echo "         likely a stale process. Run:  pkill -f vllm ; sleep 5  and retry."
+fi
 if ! curl -sf http://127.0.0.1:8001/v1/models > /dev/null 2>&1; then
   if ! pgrep -f "vllm serve" > /dev/null 2>&1; then
     nohup vllm serve "$VLLM_MODEL" \
@@ -76,8 +81,10 @@ if ! curl -sf http://127.0.0.1:8001/v1/models > /dev/null 2>&1; then
     sleep 5
     if curl -sf http://127.0.0.1:8001/v1/models > /dev/null 2>&1; then break; fi
     if [ "$i" -eq 240 ]; then
-      echo "vLLM did not come up within 20 min. Last lines of $WORKROOT/vllm.log:" >&2
-      tail -n 40 "$WORKROOT/vllm.log" >&2
+      echo "vLLM did not come up within 20 min. Root cause (first traceback):" >&2
+      grep -A 30 -m 1 "Traceback\|ERROR" "$WORKROOT/vllm.log" >&2 || true
+      echo "--- log tail ---" >&2
+      tail -n 25 "$WORKROOT/vllm.log" >&2
       exit 1
     fi
   done
