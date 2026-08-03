@@ -47,10 +47,12 @@ if [ ! -f "$VENV/bin/activate" ]; then
 fi
 # shellcheck disable=SC1091
 source "$VENV/bin/activate"
-pip install -q --upgrade pip
+# uv's resolver handles the kokoro/misaki dependency graph that trips pip's
+# resolution depth limit (pip >= 25.2 "resolution-too-deep").
+pip install -q --upgrade uv
 # vllm first: it pins an exact torch build; everything else accepts it.
-pip install -q vllm
-pip install -q -e ".[asr,tts,vad,dev]"
+uv pip install -q vllm
+uv pip install -q -e ".[asr,tts,vad,dev]"
 
 echo "== [4/5] start vLLM (:8001) =="
 if ! curl -sf http://127.0.0.1:8001/v1/models > /dev/null 2>&1; then

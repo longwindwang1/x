@@ -73,11 +73,12 @@ README; the laptop run shows what a remote player would feel.
 
 ## Troubleshooting
 
-- **pip `ResolutionImpossible` (e.g. misaki/kokoro)**: caused by installing
-  into the image's preloaded environment. The setup script installs into a
-  clean venv at `<workroot>/parley-venv` — if running pip manually, activate
-  it first (`source <workroot>/parley-venv/bin/activate`). If it persists,
-  your image's Python is likely too new/old — use a Python 3.10–3.12 image.
+- **pip `ResolutionImpossible` / `resolution-too-deep` (misaki/kokoro)**:
+  two known traps — the image's preloaded packages conflict, and pip ≥ 25.2
+  gives up on kokoro→misaki's deep dependency graph. The setup script avoids
+  both: clean venv at `<workroot>/parley-venv` + installs via `uv pip`.
+  Installing manually? Activate the venv and use `uv pip install`, not pip.
+  If it still fails, use a Python 3.10–3.12 image.
 - **vLLM OOM**: lower `--gpu-memory-utilization` to 0.65 in `pod_setup.sh`,
   or drop `max_tokens` in `deploy/server.gpu.yaml`.
 - **Mic doesn't work in the browser**: the page must be https or localhost —

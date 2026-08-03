@@ -23,7 +23,9 @@ dependencies = [
 # Real backends are opt-in so the core runtime stays light and the whole
 # pipeline can be developed/tested with mock backends on any machine.
 asr = ["faster-whisper>=1.0"]
-tts = ["kokoro>=0.9", "soundfile>=0.12"]
+# misaki bounded explicitly: kokoro's own pin history has PyPI gaps that send
+# resolvers on very deep searches (hexgrad/kokoro#321).
+tts = ["kokoro>=0.9,<1", "misaki[en]>=0.9.2,<1", "soundfile>=0.12"]
 vad = ["silero-vad>=5.1"]
 dev = ["pytest>=8.0", "websockets>=12"]
 
