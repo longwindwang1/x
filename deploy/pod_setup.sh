@@ -39,9 +39,18 @@ cd "$WORKDIR"
 echo "== [2/5] system deps (espeak-ng for kokoro g2p fallback) =="
 apt-get update -qq && apt-get install -y -qq espeak-ng > /dev/null
 
-echo "== [3/5] python deps =="
-pip install -q -e ".[asr,tts,vad,dev]"
+echo "== [3/5] python deps (clean venv — pod base images preinstall pinned"
+echo "         packages that break dependency resolution, e.g. kokoro/misaki) =="
+VENV="$WORKROOT/parley-venv"
+if [ ! -f "$VENV/bin/activate" ]; then
+  python -m venv "$VENV"
+fi
+# shellcheck disable=SC1091
+source "$VENV/bin/activate"
+pip install -q --upgrade pip
+# vllm first: it pins an exact torch build; everything else accepts it.
 pip install -q vllm
+pip install -q -e ".[asr,tts,vad,dev]"
 
 echo "== [4/5] start vLLM (:8001) =="
 if ! curl -sf http://127.0.0.1:8001/v1/models > /dev/null 2>&1; then
@@ -61,5 +70,6 @@ fi
 echo "vLLM is up."
 
 echo "== [5/5] start parley (:$PORT) =="
-echo "Bench on-pod:  cd $WORKDIR && python evals/bench_client.py --turns 20"
+echo "Bench on-pod (in another terminal):"
+echo "  source $VENV/bin/activate && cd $WORKDIR && python evals/bench_client.py --turns 20"
 exec parley serve --config deploy/server.gpu.yaml --port "$PORT"

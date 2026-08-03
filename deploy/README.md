@@ -45,7 +45,8 @@ HuggingFace mirror + 学术加速 + `/root/autodl-tmp` paths.
 **On-pod (clean server-side numbers, no internet in the loop):**
 
 ```bash
-cd /workspace/parley   # AutoDL: cd /root/autodl-tmp/parley
+cd /workspace/parley                       # AutoDL: cd /root/autodl-tmp/parley
+source ../parley-venv/bin/activate         # the venv created by pod_setup.sh
 python evals/bench_client.py --turns 20            # voice turns (synthesized utterance)
 python evals/bench_client.py --turns 20 --text-only
 python evals/latency_report.py logs/turns.jsonl    # aggregate everything recorded
@@ -72,6 +73,11 @@ README; the laptop run shows what a remote player would feel.
 
 ## Troubleshooting
 
+- **pip `ResolutionImpossible` (e.g. misaki/kokoro)**: caused by installing
+  into the image's preloaded environment. The setup script installs into a
+  clean venv at `<workroot>/parley-venv` — if running pip manually, activate
+  it first (`source <workroot>/parley-venv/bin/activate`). If it persists,
+  your image's Python is likely too new/old — use a Python 3.10–3.12 image.
 - **vLLM OOM**: lower `--gpu-memory-utilization` to 0.65 in `pod_setup.sh`,
   or drop `max_tokens` in `deploy/server.gpu.yaml`.
 - **Mic doesn't work in the browser**: the page must be https or localhost —
