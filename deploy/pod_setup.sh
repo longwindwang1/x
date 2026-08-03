@@ -61,17 +61,25 @@ uv pip install -e ".[asr,tts,vad,dev]"
 
 echo "== [4/5] start vLLM (:8001) =="
 if ! curl -sf http://127.0.0.1:8001/v1/models > /dev/null 2>&1; then
-  nohup python -m vllm.entrypoints.openai.api_server \
-    --model "$VLLM_MODEL" \
-    --max-model-len 4096 \
-    --gpu-memory-utilization 0.72 \
-    --port 8001 \
-    > "$WORKROOT/vllm.log" 2>&1 &
-  echo "waiting for vLLM to load $VLLM_MODEL (see $WORKROOT/vllm.log)..."
-  for i in $(seq 1 120); do
+  if ! pgrep -f "vllm serve" > /dev/null 2>&1; then
+    nohup vllm serve "$VLLM_MODEL" \
+      --max-model-len 4096 \
+      --gpu-memory-utilization 0.72 \
+      --port 8001 \
+      > "$WORKROOT/vllm.log" 2>&1 &
+  else
+    echo "vLLM process already running (still loading); waiting on it"
+  fi
+  echo "waiting for vLLM to load $VLLM_MODEL (first run downloads ~5.5 GB;"
+  echo "watch progress with: tail -f $WORKROOT/vllm.log)"
+  for i in $(seq 1 240); do
     sleep 5
     if curl -sf http://127.0.0.1:8001/v1/models > /dev/null 2>&1; then break; fi
-    if [ "$i" -eq 120 ]; then echo "vLLM failed to start; tail $WORKROOT/vllm.log" >&2; exit 1; fi
+    if [ "$i" -eq 240 ]; then
+      echo "vLLM did not come up within 20 min. Last lines of $WORKROOT/vllm.log:" >&2
+      tail -n 40 "$WORKROOT/vllm.log" >&2
+      exit 1
+    fi
   done
 fi
 echo "vLLM is up."
