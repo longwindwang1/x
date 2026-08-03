@@ -21,6 +21,10 @@ if [ -f /etc/network_turbo ]; then
   # shellcheck disable=SC1091
   source /etc/network_turbo || true
   export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
+  # uv does not read pip's mirror config — point it at the TUNA mirror
+  # explicitly or it will pull ~6 GB of torch from overseas PyPI.
+  export UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-https://pypi.tuna.tsinghua.edu.cn/simple}"
+  export UV_INDEX_URL="$UV_DEFAULT_INDEX"   # legacy var for older uv
   WORKROOT=/root/autodl-tmp        # the big data disk on AutoDL
 else
   WORKROOT=/workspace
@@ -51,8 +55,9 @@ source "$VENV/bin/activate"
 # resolution depth limit (pip >= 25.2 "resolution-too-deep").
 pip install -q --upgrade uv
 # vllm first: it pins an exact torch build; everything else accepts it.
-uv pip install -q vllm
-uv pip install -q -e ".[asr,tts,vad,dev]"
+echo "installing vllm + torch (~6 GB on first run — progress below)"
+uv pip install vllm
+uv pip install -e ".[asr,tts,vad,dev]"
 
 echo "== [4/5] start vLLM (:8001) =="
 if ! curl -sf http://127.0.0.1:8001/v1/models > /dev/null 2>&1; then
