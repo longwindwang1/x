@@ -60,17 +60,46 @@ uv pip install vllm
 uv pip install -e ".[asr,tts,vad,dev]"
 
 echo "== [4/5] start vLLM (:8001) =="
+GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1 || echo unknown)
+GPU_TOTAL=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -1 || echo 0)
 GPU_USED=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1 || echo 0)
+echo "GPU: $GPU_NAME  total=${GPU_TOTAL} MiB  in use=${GPU_USED} MiB"
+
 if [ "${GPU_USED:-0}" -gt 2000 ] && ! curl -sf http://127.0.0.1:8001/v1/models > /dev/null 2>&1; then
   echo "WARNING: GPU already has ${GPU_USED} MiB in use but vLLM is not serving —"
   echo "         likely a stale process. Run:  pkill -f vllm ; sleep 5  and retry."
 fi
+
+# Size the deployment to the GPU actually rented. The 7B AWQ weights are
+# ~5.5 GB; the rest of the budget is KV cache, CUDA graphs, and the ASR/TTS
+# models sharing the card.
+MAX_LEN=4096
+GPU_UTIL=0.72
+EXTRA_ARGS=""
+if [ "${GPU_TOTAL:-0}" -lt 14000 ]; then
+  : "${PARLEY_VLLM_MODEL:=Qwen/Qwen2.5-3B-Instruct-AWQ}"
+  VLLM_MODEL="$PARLEY_VLLM_MODEL"
+  MAX_LEN=2048
+  GPU_UTIL=0.80
+  EXTRA_ARGS="--enforce-eager"
+  echo "NOTE: ${GPU_TOTAL} MiB GPU — using $VLLM_MODEL with a reduced footprint."
+elif [ "${GPU_TOTAL:-0}" -lt 22000 ]; then
+  MAX_LEN=3072
+  GPU_UTIL=0.80
+  EXTRA_ARGS="--enforce-eager"
+  echo "NOTE: ${GPU_TOTAL} MiB GPU — tightening KV cache and disabling CUDA graphs."
+fi
+
 if ! curl -sf http://127.0.0.1:8001/v1/models > /dev/null 2>&1; then
   if ! pgrep -f "vllm serve" > /dev/null 2>&1; then
+    echo "starting: vllm serve $VLLM_MODEL --max-model-len $MAX_LEN" \
+         "--gpu-memory-utilization $GPU_UTIL $EXTRA_ARGS"
+    # shellcheck disable=SC2086
     nohup vllm serve "$VLLM_MODEL" \
-      --max-model-len 4096 \
-      --gpu-memory-utilization 0.72 \
+      --max-model-len "$MAX_LEN" \
+      --gpu-memory-utilization "$GPU_UTIL" \
       --port 8001 \
+      $EXTRA_ARGS \
       > "$WORKROOT/vllm.log" 2>&1 &
   else
     echo "vLLM process already running (still loading); waiting on it"
@@ -81,10 +110,14 @@ if ! curl -sf http://127.0.0.1:8001/v1/models > /dev/null 2>&1; then
     sleep 5
     if curl -sf http://127.0.0.1:8001/v1/models > /dev/null 2>&1; then break; fi
     if [ "$i" -eq 240 ]; then
-      echo "vLLM did not come up within 20 min. Root cause (first traceback):" >&2
-      grep -A 30 -m 1 "Traceback\|ERROR" "$WORKROOT/vllm.log" >&2 || true
+      echo "vLLM did not come up within 20 min." >&2
+      # The engine subprocess raises the real exception; the API server only
+      # reports that the engine died. Print the END of the engine traceback.
+      echo "--- engine core failure (root cause) ---" >&2
+      sed -n '/EngineCore failed to start/,$p' "$WORKROOT/vllm.log" \
+        | grep -v "^(APIServer" | tail -n 20 >&2 || true
       echo "--- log tail ---" >&2
-      tail -n 25 "$WORKROOT/vllm.log" >&2
+      tail -n 15 "$WORKROOT/vllm.log" >&2
       exit 1
     fi
   done
