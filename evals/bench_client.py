@@ -149,6 +149,10 @@ async def collect_turn(ws) -> dict:
             continue
         if payload["type"] == "turn.metrics":
             result["breakdown"] = payload["breakdown"]
+        elif payload["type"] == "asr.final":
+            result["asr_text"] = payload["text"]
+        elif payload["type"] == "error":
+            print(f"  server error: {payload['message']}")
         elif payload["type"] == "turn.cancelled":
             result["cancelled"] = True
             return result
@@ -229,9 +233,10 @@ async def run(args: argparse.Namespace) -> None:
             phase = "warmup" if i < args.warmup else "bench"
             client_ms = result.get("client_ms")
             server_ms = result["breakdown"].get("first_audio_ms")
+            asr_note = f' asr={result["asr_text"]!r}' if "asr_text" in result else ""
             print(f"turn {i + 1}/{total} [{phase}]: "
                   f"client={client_ms and f'{client_ms:.0f}ms'} "
-                  f"server_first_audio={server_ms and f'{server_ms}ms'}")
+                  f"server_first_audio={server_ms and f'{server_ms}ms'}{asr_note}")
             if i >= args.warmup:
                 rows.append(result)
             await asyncio.sleep(0.3)
