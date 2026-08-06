@@ -42,6 +42,16 @@ else
 fi
 cd "$WORKDIR"
 
+if [ "$IS_CN" = "1" ]; then
+  # 学术加速 only proxies whitelisted overseas hosts (GitHub/HF) and is only
+  # needed for the git step above. Everything after this point talks to
+  # domestic mirrors (TUNA pip index, ModelScope weights, hf-mirror), and
+  # tunneling those through the proxy causes flaky downloads
+  # ("tunnel error: unexpected end of file").
+  unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY all_proxy ALL_PROXY
+  echo "学术加速 proxy disabled for the rest of setup (domestic mirrors are direct)"
+fi
+
 echo "== [2/5] system deps (espeak-ng for kokoro g2p fallback) =="
 apt-get update -qq && apt-get install -y -qq espeak-ng > /dev/null
 

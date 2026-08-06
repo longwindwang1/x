@@ -80,6 +80,11 @@ README; the laptop run shows what a remote player would feel.
 
 ## Troubleshooting
 
+- **AutoDL: wheel downloads fail with `tunnel error: unexpected end of file`**:
+  学术加速 was proxying traffic to a domestic mirror (TUNA/ModelScope), which
+  it does not support. The script now drops the proxy right after the git
+  step — re-run from the local clone (`git pull && bash deploy/pod_setup.sh`).
+  If installing manually, `unset http_proxy https_proxy` first.
 - **pip `ResolutionImpossible` / `resolution-too-deep` (misaki/kokoro)**:
   two known traps — the image's preloaded packages conflict, and pip ≥ 25.2
   gives up on kokoro→misaki's deep dependency graph. The setup script avoids
