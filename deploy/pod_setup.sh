@@ -75,6 +75,15 @@ echo "installing vllm + torch (~6 GB on first run — progress below)"
 uv pip install vllm
 uv pip install -e ".[asr,tts,vad,dev]"
 
+# CTranslate2 (faster-whisper) dlopens libcublas.so.12 / libcudnn at inference
+# time. Pod images keep the CUDA runtime inside torch's pip packages rather
+# than system-wide, so point the dynamic loader at the pip-installed copies
+# (otherwise every voice turn dies with "Library libcublas.so.12 is not
+# found or cannot be loaded").
+uv pip install -q nvidia-cublas-cu12 nvidia-cudnn-cu12
+CUDA_LIB_DIRS=$(python -c 'import os, nvidia.cublas.lib, nvidia.cudnn.lib; print(os.path.dirname(nvidia.cublas.lib.__file__) + ":" + os.path.dirname(nvidia.cudnn.lib.__file__))')
+export LD_LIBRARY_PATH="$CUDA_LIB_DIRS${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
 echo "== [4/5] start vLLM (:8001) =="
 GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1 || echo unknown)
 GPU_TOTAL=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -1 || echo 0)

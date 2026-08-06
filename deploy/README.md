@@ -85,6 +85,12 @@ README; the laptop run shows what a remote player would feel.
   it does not support. The script now drops the proxy right after the git
   step — re-run from the local clone (`git pull && bash deploy/pod_setup.sh`).
   If installing manually, `unset http_proxy https_proxy` first.
+- **Voice turns all fail with `Library libcublas.so.12 is not found or
+  cannot be loaded`** (server log: `Turn N failed`): CTranslate2 dlopens
+  cuBLAS/cuDNN itself and pod images only ship them inside torch's pip
+  packages. The script now installs `nvidia-cublas-cu12 nvidia-cudnn-cu12`
+  and exports `LD_LIBRARY_PATH` accordingly; running `parley serve` by hand
+  requires the same export (see step 3 of `pod_setup.sh`).
 - **AutoDL: HF model download fails with `401 Unauthorized` from
   `cas-server.xethub.hf.co`** (faster-whisper/kokoro first start): recent
   huggingface_hub defaults to the Xet protocol, which hf-mirror does not
