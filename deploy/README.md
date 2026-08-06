@@ -85,6 +85,11 @@ README; the laptop run shows what a remote player would feel.
   it does not support. The script now drops the proxy right after the git
   step — re-run from the local clone (`git pull && bash deploy/pod_setup.sh`).
   If installing manually, `unset http_proxy https_proxy` first.
+- **AutoDL: HF model download fails with `401 Unauthorized` from
+  `cas-server.xethub.hf.co`** (faster-whisper/kokoro first start): recent
+  huggingface_hub defaults to the Xet protocol, which hf-mirror does not
+  mirror. The script now sets `HF_HUB_DISABLE_XET=1`; if running manually,
+  export that yourself.
 - **pip `ResolutionImpossible` / `resolution-too-deep` (misaki/kokoro)**:
   two known traps — the image's preloaded packages conflict, and pip ≥ 25.2
   gives up on kokoro→misaki's deep dependency graph. The setup script avoids

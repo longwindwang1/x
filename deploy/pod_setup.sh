@@ -23,6 +23,10 @@ if [ -f /etc/network_turbo ]; then
   # shellcheck disable=SC1091
   source /etc/network_turbo || true
   export HF_ENDPOINT="${HF_ENDPOINT:-https://hf-mirror.com}"
+  # hf-mirror only mirrors the classic hub API. Recent huggingface_hub
+  # defaults to Xet-backed downloads, whose CAS server (cas-server.xethub.
+  # hf.co) is not mirrored and 401s from CN — force the classic path.
+  export HF_HUB_DISABLE_XET=1
   # uv does not read pip's mirror config — point it at the TUNA mirror
   # explicitly or it will pull ~6 GB of torch from overseas PyPI.
   export UV_DEFAULT_INDEX="${UV_DEFAULT_INDEX:-https://pypi.tuna.tsinghua.edu.cn/simple}"
